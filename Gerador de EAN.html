@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gerador de Código de Barras EAN-13</title>
+    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.0/dist/JsBarcode.all.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.1.5/jszip.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/g/filesaver.js"></script>
+</head>
+<body>
+    <label for="quantity">Quantidade:</label>
+    <input type="number" id="quantity" value="1" min="1">
+    <button onclick="generateAndDownload()">Gerar e Baixar</button>
+
+    <script>
+        // Lista para armazenar códigos de barras gerados
+        const generatedEANs = [];
+
+        // Função para calcular o dígito verificador de um código EAN-13
+        function calculateCheckDigit(ean) {
+            const eanArray = ean.split('').map(num => parseInt(num));
+            let sum = 0;
+            eanArray.forEach((num, index) => {
+                sum += num * (index % 2 === 0 ? 1 : 3);
+            });
+            const remainder = sum % 10;
+            const checkDigit = remainder === 0 ? 0 : 10 - remainder;
+            return checkDigit;
+        }
+
+        // Função para gerar e baixar códigos de barras
+        function generateAndDownload() {
+            const quantity = parseInt(document.getElementById('quantity').value);
+            const zip = new JSZip();
+
+            for (let i = 0; i < quantity; i++) {
+                let ean13CodeWithoutCheckDigit = generateUniqueEAN();
+                const checkDigit = calculateCheckDigit(ean13CodeWithoutCheckDigit);
+                const ean13Code = ean13CodeWithoutCheckDigit + checkDigit.toString();
+
+                const canvas = document.createElement('canvas');
+                JsBarcode(canvas, ean13Code, {
+                    format: 'EAN13',
+                    displayValue: true
+                });
+
+                // Converta o canvas para um blob (formato de imagem PNG)
+                canvas.toBlob(function(blob) {
+                    // Adicione o blob ao arquivo ZIP
+                    zip.file(`${ean13Code}.png`, blob);
+
+                    // Se for o último código de barras, adicione o arquivo TXT com os EANs
+                    if (i === quantity - 1) {
+                        const eanListText = generatedEANs.map(ean => ean + calculateCheckDigit(ean).toString()).join('\n');
+                        zip.file('Listagem com todos os EAN-13.txt', eanListText);
+
+                        // Faça o download do arquivo ZIP
+                        zip.generateAsync({ type: 'blob' }).then(function(content) {
+                            saveAs(content, 'Código EAN-13.zip');
+                        });
+                    }
+                });
+            }
+        }
+
+        // Função para gerar um código de barras EAN-13 sem o dígito verificador
+        function generateUniqueEAN() {
+            let ean13CodeWithoutCheckDigit;
+            do {
+                const random9Digits = Math.floor(Math.random() * 1000000000).toString().padStart(9, '0');
+                ean13CodeWithoutCheckDigit = '789' + random9Digits;
+            } while (generatedEANs.includes(ean13CodeWithoutCheckDigit));
+            
+            // Adicione o código gerado à lista
+            generatedEANs.push(ean13CodeWithoutCheckDigit);
+
+            return ean13CodeWithoutCheckDigit;
+        }
+    </script>
+</body>
+</html>
